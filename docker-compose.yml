@@ -1,0 +1,12 @@
+services:
+  server:
+    build: ./server
+    container_name: otus-server
+    ports:
+      - "3000:3000"
+    volumes:
+      - server-data:/data
+    restart: unless-stopped
+
+volumes:
+  server-data:
