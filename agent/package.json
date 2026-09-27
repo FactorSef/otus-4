@@ -10,8 +10,8 @@
     "node": ">=22.13"
   },
   "dependencies": {
-    "@langchain/anthropic": "^1.5.11",
     "@langchain/core": "^1.2.13",
+    "@langchain/openai": "^1.6.0",
     "langchain": "^1.5.14",
     "zod": "^4.6.5"
   }

@@ -1,19 +1,20 @@
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { createAgent, toolCallLimitMiddleware, AIMessage, ToolMessage } from 'langchain';
-import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatOpenAI } from '@langchain/openai';
 import { tools } from './tools.js';
 import { SYSTEM_PROMPT } from './prompt.js';
 import { API_URL } from './api.js';
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.error('Не задан ANTHROPIC_API_KEY. Укажите его в окружении или в agent/.env');
-  process.exit(1);
-}
+const LLM_BASE_URL = process.env.LLM_BASE_URL ?? 'http://localhost:1234/v1';
 
-const model = new ChatAnthropic({
-  model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-5',
-  maxTokens: 16000,
+// LM Studio отдаёт OpenAI-совместимый API; ключ он не проверяет, но клиенту нужен непустой
+const model = new ChatOpenAI({
+  model: process.env.LLM_MODEL ?? 'qwen/qwen3.6-35b-a3b',
+  apiKey: process.env.LLM_API_KEY ?? 'lm-studio',
+  configuration: { baseURL: LLM_BASE_URL },
+  temperature: 0,
+  maxTokens: 8000,
 });
 
 const agent = createAgent({

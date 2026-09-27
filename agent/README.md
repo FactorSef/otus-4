@@ -1,6 +1,6 @@
 # LangChain-агент для API блога
 
-Агент на LangChain.js и Claude (`claude-opus-5`). Работает с сервером из директории `server` через четыре инструмента:
+Агент на LangChain.js и локальной модели Qwen (`qwen/qwen3.6-35b-a3b`) в LM Studio. Работает с сервером из директории `server` через четыре инструмента:
 
 | Инструмент | Операция | HTTP |
 |---|---|---|
@@ -21,15 +21,18 @@
 
    Сервер будет доступен на `http://localhost:3000`. База SQLite хранится в томе `server-data`.
 
-2. Установите зависимости агента и укажите ключ:
+2. В LM Studio загрузите модель и включите сервер (вкладка Developer → Start Server или `lms server start`). Он отдаёт OpenAI-совместимый API на `http://localhost:1234/v1`.
+
+3. Установите зависимости агента:
 
    ```
    cd agent
    npm install
-   copy .env.example .env      # затем впишите ANTHROPIC_API_KEY
    ```
 
-3. Запустите агента:
+   Чтобы сменить адрес LM Studio или модель, скопируйте `.env.example` в `.env` и раскомментируйте нужные строки.
+
+4. Запустите агента (нужен Node.js 22.13+):
 
    ```
    npm start                                   # интерактивный режим
@@ -42,9 +45,10 @@
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | ключ Claude API (обязателен) |
+| `LLM_BASE_URL` | `http://localhost:1234/v1` | OpenAI-совместимый endpoint LM Studio |
+| `LLM_MODEL` | `qwen/qwen3.6-35b-a3b` | id модели из `GET /v1/models` |
+| `LLM_API_KEY` | `lm-studio` | ключ; LM Studio его не проверяет |
 | `API_URL` | `http://localhost:3000` | адрес сервера |
-| `ANTHROPIC_MODEL` | `claude-opus-5` | модель Claude |
 
 ## Структура
 
