@@ -4,6 +4,7 @@
 
 - **`server/`** — REST API блога на Express и SQLite: пользователи и статьи. Запускается в Docker.
 - **`agent/`** — консольный агент на LangChain.js. Понимает запросы на естественном языке и выполняет их через API сервера. В качестве LLM использует локальную модель Qwen в LM Studio.
+- **`py-agent/`** — тот же агент на Python (LangChain + Pydantic): те же инструменты, промпт и формат ответа.
 
 ```
 Пользователь ──► agent (LangChain) ──► LM Studio (Qwen)
@@ -16,7 +17,8 @@
 | Компонент | Версия | Зачем |
 |---|---|---|
 | Docker Desktop | любая свежая | запуск сервера |
-| Node.js | 22.13 или новее | запуск агента |
+| Node.js | 22.13 или новее | запуск агента на JS |
+| Python | 3.11 или новее | запуск агента на Python (по желанию) |
 | LM Studio | с загруженной моделью `qwen/qwen3.6-35b-a3b` | LLM для агента |
 
 Модель должна поддерживать вызов инструментов (tool calling). Qwen3 его поддерживает.
@@ -63,6 +65,18 @@ npm start
 ```
 
 Если LM Studio работает на другом адресе или вы используете другую модель, скопируйте `.env.example` в `.env` (`copy .env.example .env` в Windows) и раскомментируйте нужные строки.
+
+**Python-версия** (нужен Python 3.11+):
+
+```
+cd py-agent
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python -m agent
+```
+
+Команды использования ниже одинаковы для обеих версий: вместо `npm start -- "запрос"` выполните `python -m agent "запрос"`. Подробнее — в [py-agent/README.md](py-agent/README.md).
 
 ## Использование агента
 
@@ -174,6 +188,7 @@ docker compose down -v     # остановить и удалить базу; п
 | `node: bad option: --env-file-if-exists` | Старая версия Node.js. Обновитесь до 22.13+ или запустите `npx -y node@22 src/index.js` из папки `agent`. |
 | `Connection error` при запросе к агенту | Сервер LM Studio выключен. Выполните `lms server start`. |
 | Агент сообщает, что API недоступен | Не запущен сервер блога. Проверьте `docker compose ps`. |
+| Python-агент получает от сервера или LM Studio ошибку 503 | Запрос ушёл через системный прокси. Для `localhost` агент прокси уже не использует; если сервер на другом адресе, добавьте его в исключения прокси. |
 | Модель не найдена | Модель не загружена в LM Studio или `LLM_MODEL` не совпадает с id из `/v1/models`. |
 
 ## Структура репозитория
@@ -189,7 +204,13 @@ agent/               LangChain-агент
   src/tools.js       инструменты create/get/update/list
   src/prompt.js      системный промпт
   src/api.js         HTTP-клиент к серверу
+py-agent/            тот же агент на Python
+  agent/__main__.py  модель, агент, CLI
+  agent/tools.py     инструменты create/get/update/list
+  agent/prompt.py    системный промпт
+  agent/response.py  схема ответа
+  agent/api.py       HTTP-клиент к серверу
 reports/             отчёты о ходе работы
 ```
 
-Подробнее об агенте см. в [agent/README.md](agent/README.md).
+Подробнее об агентах см. в [agent/README.md](agent/README.md) и [py-agent/README.md](py-agent/README.md).
