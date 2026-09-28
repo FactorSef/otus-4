@@ -1,10 +1,11 @@
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { createAgent, toolCallLimitMiddleware, AIMessage, ToolMessage } from 'langchain';
+import { createAgent, toolCallLimitMiddleware, toolStrategy, AIMessage, ToolMessage } from 'langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { tools } from './tools.js';
 import { SYSTEM_PROMPT } from './prompt.js';
 import { API_URL } from './api.js';
+import { AgentResponse, failed } from './response.js';
 
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? 'http://localhost:1234/v1';
 
@@ -21,6 +22,8 @@ const agent = createAgent({
   model,
   tools,
   systemPrompt: SYSTEM_PROMPT,
+  // Итог возвращается вызовом служебного инструмента и проверяется схемой; при несовпадении модель повторяет попытку
+  responseFormat: toolStrategy(AgentResponse),
   // Предохранитель от зацикливания: не больше 15 вызовов инструментов на один запрос
   middleware: [toolCallLimitMiddleware({ runLimit: 15, exitBehavior: 'end' })],
 });
@@ -28,40 +31,54 @@ const agent = createAgent({
 // История диалога хранится в памяти процесса
 let messages = [];
 
+const TOOL_NAMES = new Set(tools.map((t) => t.name));
+
+// Трассировка вызовов идёт в stderr, чтобы в stdout был только JSON-ответ
+function trace(newMessages) {
+  for (const message of newMessages) {
+    if (AIMessage.isInstance(message)) {
+      for (const call of message.tool_calls ?? []) {
+        if (TOOL_NAMES.has(call.name)) console.error(`  → ${call.name}(${JSON.stringify(call.args)})`);
+      }
+    } else if (ToolMessage.isInstance(message) && TOOL_NAMES.has(message.name)) {
+      const text = String(message.content);
+      console.error(`  ← ${text.length > 200 ? `${text.slice(0, 200)}…` : text}`);
+    }
+  }
+}
+
 async function ask(question) {
   const from = messages.length;
   const result = await agent.invoke({ messages: [...messages, { role: 'user', content: question }] });
   messages = result.messages;
+  trace(messages.slice(from));
 
-  for (const message of messages.slice(from)) {
-    if (AIMessage.isInstance(message)) {
-      for (const call of message.tool_calls ?? []) {
-        console.log(`  → ${call.name}(${JSON.stringify(call.args)})`);
-      }
-    } else if (ToolMessage.isInstance(message)) {
-      const text = String(message.content);
-      console.log(`  ← ${text.length > 200 ? `${text.slice(0, 200)}…` : text}`);
-    }
-  }
-
-  const last = messages.at(-1);
-  return last?.text || '(агент не вернул текстового ответа)';
+  // Структурированного ответа нет, если сработал лимит вызовов инструментов
+  return result.structuredResponse ?? failed('unknown', 'Агент не сформировал ответ: превышен лимит вызовов инструментов');
 }
+
+// Модель может вернуть поля в любом порядке — выводим всегда status, action, data
+const print = ({ status, action, data }) => console.log(JSON.stringify({ status, action, data }, null, 2));
 
 const oneShot = process.argv.slice(2).join(' ').trim();
 if (oneShot) {
-  console.log(await ask(oneShot));
+  try {
+    print(await ask(oneShot));
+  } catch (err) {
+    print(failed('unknown', `Ошибка агента: ${err.message}`));
+    process.exitCode = 1;
+  }
 } else {
-  console.log(`Агент подключён к API ${API_URL}. Введите запрос, «exit» — выход.`);
+  console.error(`Агент подключён к API ${API_URL}. Введите запрос, «exit» — выход.`);
   const rl = readline.createInterface({ input, output });
   while (true) {
     const question = (await rl.question('\n> ')).trim();
     if (!question) continue;
     if (['exit', 'quit', 'выход'].includes(question.toLowerCase())) break;
     try {
-      console.log(`\n${await ask(question)}`);
+      print(await ask(question));
     } catch (err) {
-      console.error(`Ошибка: ${err.message}`);
+      print(failed('unknown', `Ошибка агента: ${err.message}`));
     }
   }
   rl.close();
